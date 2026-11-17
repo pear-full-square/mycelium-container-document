@@ -25,4 +25,4 @@ box.read(name); box.remove(name)
 
 ## Tests
 
-- `npm test`: the unit tests
+- `brittle-bare test/*.test.js`: the unit tests
