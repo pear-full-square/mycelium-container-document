@@ -35,7 +35,10 @@ descending by default: the newest first.
 - **Given under the folder's lock**, the operating system's, on
   `<folder>/.lock`: senders in parallel, each its own process, wait
   their turn; a sender that dies releases it. `create` answers the
-  offset: the sender's confirmation.
+  offset: the sender's confirmation. The lock's file holds the last
+  offset given, so `reserve()` gives one with no record written here:
+  the stream as the one clock for what arrives beside it (an mrepo's
+  own requests).
 - **Kept in buckets**: folders named by a prefix of the offset, a level
   each length, `[5, 6]` by default (about 28 hours, then about 2.8):
   `done/17953/179531/1795312345678.json`. The buckets are the
