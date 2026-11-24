@@ -62,6 +62,8 @@ export function documents (folder, encoding) {
 //                          one), written, -> its offset (a number). A
 //                          function is called with the offset, for a
 //                          record that says its own: create(o => ({...}))
+//   log.reserve()          an offset given, no record written here: the
+//                          stream as a clock for what arrives beside it
 //   log.put(offset, value) a record under an offset given elsewhere (the
 //                          same record in another folder: one name)
 //   log.read(offset), log.has(offset), log.remove(offset)
@@ -70,7 +72,8 @@ export function documents (folder, encoding) {
 //                          order, descending); after/before: offsets
 //                          greater/less than; limit: at most so many
 // The lock is the operating system's, on <folder>/.lock, held while an
-// offset is given and its file written, released when its holder dies.
+// offset is given and its file written, released when its holder dies; the
+// file holds the last offset given.
 export const BUCKETS = [5, 6]
 export const DIGITS = 13
 export const LOCK = '.lock'
@@ -102,18 +105,29 @@ export function stream (folder, encoding, { buckets = BUCKETS, now = Date.now } 
     renameSync(to + '.part', to)
     return offset
   }
+  // An offset given under the lock: now, or the last given plus one. The
+  // last is kept in the lock's file (else: the highest record there).
+  const give = then => {
+    mkdirSync(folder, { recursive: true })
+    const at = join(folder, LOCK)
+    const fd = openSync(at, 'a+')
+    try {
+      fsx.waitForLockSync(fd)
+      const kept = Number(readFileSync(at, 'utf8'))
+      const offset = Math.max(now(), (kept || (log.list({ limit: 1 })[0] ?? 0)) + 1)
+      then(offset)
+      writeFileSync(at, String(offset))
+      return offset
+    } finally { closeSync(fd) }
+  }
   const log = {
     folder,
     buckets,
-    create (value) {
-      mkdirSync(folder, { recursive: true })
-      const fd = openSync(join(folder, LOCK), 'a+')
-      try {
-        fsx.waitForLockSync(fd)
-        const offset = Math.max(now(), (log.list({ limit: 1 })[0] ?? 0) + 1)
-        return write(offset, typeof value === 'function' ? value(offset) : value)
-      } finally { closeSync(fd) }
-    },
+    fileOf: file,
+    create: value => give(offset => write(offset, typeof value === 'function' ? value(offset) : value)),
+    // an offset of this stream's with no record here: one clock for what
+    // arrives beside it (an mrepo's own requests)
+    reserve: () => give(() => {}),
     put: (offset, value) => write(offset, value),
     has: offset => existsSync(file(offset)),
     read: offset => encoding.decode(readFileSync(file(offset))),

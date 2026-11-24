@@ -33,6 +33,11 @@ test('stream: offsets only grow, never two the same: an offset taken, the next o
     t.alike(made, [at, at + 1, at + 2], 'the same millisecond: plus one')
     const back = stream(join(dir, 's'), json, { now: () => at - 5000 })
     t.is(back.create({}), at + 3, 'a clock gone back: after the highest there')
+    t.is(back.reserve(), at + 4, 'an offset reserved: given, no record written')
+    t.absent(back.has(at + 4))
+    t.is(back.create({}), at + 5, 'and never given again')
+    rmSync(join(dir, 's', '.lock'))
+    t.is(back.create({}), at + 6, 'its lock file gone: after the highest record there')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
